@@ -1,0 +1,94 @@
+---
+title: "Final Assignment Practical Machine Learning"
+author: "robsonsan"
+date: "24/05/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Objectives
+
+This assignment has the objective to predict 20 different test cases
+
+## Loading Libraries
+
+```{r load-library}
+library(caret)
+library(randomForest)
+library(doParallel)
+
+```
+
+## Loading Files
+
+```{r load-files, cache=TRUE}
+
+train_df <- read.csv("pml-training.csv")
+test_df <- read.csv("pml-testing.csv")
+
+```
+
+## Data Preprocessing
+
+Removing timestamps and column id
+
+```{r data-preprocessing}
+train_data <- train_df[,6:ncol(train_df)]
+```
+
+partitioning train and validation set (70/30)
+
+```{r}
+train_rows <- createDataPartition(y=train_data$classe, p=0.7, list=F)
+training_data <- train_data[train_rows, ]
+validation_data <- train_data[-train_rows, ]
+
+# remove NAs
+
+near_zero_var <- nearZeroVar(train_data, saveMetrics = T)
+training_data <- training_data[, row.names(near_zero_var[near_zero_var$nzv == FALSE, ])]
+
+training_data <- training_data[, colSums(is.na(training_data)) == 0]
+
+dim(training_data)
+```
+
+## Model Training
+
+```{r}
+
+control = trainControl(method = 'cv', number = 5)
+
+cl <- makePSOCKcluster(5)
+registerDoParallel(cl)
+
+mRF <- randomForest(classe ~., data=training_data, trControl=control, ntree=5, mtry=2, importance=TRUE)
+
+stopCluster(cl)
+```
+
+Summary of model
+
+```{r}
+mRF
+```
+
+Predictions on validation data
+
+```{r}
+predictions <- predict(mRF, newdata = validation_data)
+
+confusionMatrix(predictions, validation_data$classe)$table
+confusionMatrix(predictions, validation_data$classe)$overall[1]
+```
+
+Predictions on testing data
+
+```{r}
+predictions_final <- predict(mRF, newdata = test_df )
+
+predictions_final
+```
